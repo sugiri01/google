@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concept Mapper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .taxonomy-remember { background-color: #f0f9ff; }
+        .taxonomy-understand { background-color: #e0f2fe; }
+        .taxonomy-apply { background-color: #bae6fd; }
+        .taxonomy-analyze { background-color: #7dd3fc; }
+        .taxonomy-evaluate { background-color: #38bdf8; }
+        .taxonomy-create { background-color: #0ea5e9; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="flex items-center justify-between mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Concept Mapper</h1>
+            <img src="{{ url_for('static', filename='eda.png') }}" alt="Logo Placeholder" class="h-12">
+        </header>
+        
+        <div class="bg-white shadow-md rounded-lg p-6 mb-8">
+            <textarea id="inputText" rows="6" class="w-full p-2 border rounded-md mb-4" placeholder="Enter your text here..."></textarea>
+            <button onclick="generateMaps()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                Generate Concept Maps
+            </button>
+        </div>
+
+        <div id="loadingBar" class="hidden w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 my-4">
+            <div id="loadingProgress" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+        </div>
+
+        <div id="results" class="space-y-8"></div>
+    </div>
+
+    <script>
+        function generateMaps() {
+            const text = document.getElementById('inputText').value;
+            const resultsDiv = document.getElementById('results');
+            const loadingBar = document.getElementById('loadingBar');
+            const loadingProgress = document.getElementById('loadingProgress');
+            
+            resultsDiv.innerHTML = '';
+            loadingBar.classList.remove('hidden');
+            
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                if (progress > 90) progress = 90;
+                loadingProgress.style.width = `${progress}%`;
+            }, 500);
+
+            fetch('/generate_maps', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(progressInterval);
+                loadingProgress.style.width = '100%';
+                setTimeout(() => {
+                    loadingBar.classList.add('hidden');
+                    displayResults(data);
+                }, 500);
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                clearInterval(progressInterval);
+                loadingBar.classList.add('hidden');
+                resultsDiv.innerHTML = '<p class="text-red-500">An error occurred while generating maps.</p>';
+            });
+        }
+
+        function displayResults(data) {
+    const resultsDiv = document.getElementById('results');
+    let html = `
+        <div class="bg-white shadow-md rounded-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">Summary</h2>
+            <div class="space-y-4">
+    `;
+
+    // Split the summary into main sections
+    const mainSections = data.summary.split('\n\n\n');
+    
+    mainSections.forEach(section => {
+        const [sectionTitle, ...sectionContent] = section.split('\n\n');
+        
+        html += `
+            <div class="border rounded-lg p-4">
+                <h3 class="text-xl font-semibold mb-2">${sectionTitle.trim()}</h3>
+        `;
+        
+        sectionContent.forEach(subSection => {
+            const [subTitle, ...subContent] = subSection.split('\n');
+            html += `
+                <div class="mt-2">
+                    <h4 class="text-lg font-medium">${subTitle.trim()}</h4>
+                    <p class="text-gray-700">${subContent.join(' ').trim()}</p>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+    });
+
+    html += `
+            </div>
+        </div>
+    `;
+
+     // Add this console.log to check the summary content
+    console.log("Summary:", data.summary);
+
+    ['overview', 'bloom_levels', 'detailed'].forEach(category => {
+        if (data.concept_maps[category]) {
+            html += `
+                <div class="bg-white shadow-md rounded-lg p-6 mb-8">
+                    <h2 class="text-2xl font-bold mb-4">${category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ')} Maps</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            `;
+            
+            if (typeof data.concept_maps[category] === 'string') {
+                html += `
+                    <div class="border rounded-lg p-4">
+                        <h3 class="text-lg font-semibold mb-2">${data.concept_maps[category].replace(/_/g, ' ').replace('.png', '')}</h3>
+                        <a href="/images/${data.concept_maps[category]}" target="_blank" class="text-blue-500 hover:underline">View Image</a>
+                    </div>
+                `;
+            } else {
+                Object.entries(data.concept_maps[category]).forEach(([key, value]) => {
+                    html += `
+                        <div class="border rounded-lg p-4">
+                            <h3 class="text-lg font-semibold mb-2">${key.replace(/_/g, ' ')}</h3>
+                            <a href="/images/${value}" target="_blank" class="text-blue-500 hover:underline">View Image</a>
+                        </div>
+                    `;
+                });
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+    });
+
+    resultsDiv.innerHTML = html;
+}
+    </script>
+</body>
+</html>
